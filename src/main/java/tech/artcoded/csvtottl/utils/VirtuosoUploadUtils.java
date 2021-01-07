@@ -17,7 +17,7 @@ import java.nio.charset.StandardCharsets;
 
 public interface VirtuosoUploadUtils {
     Logger log = LoggerFactory.getLogger(VirtuosoUploadUtils.class);
-    static void upload(Model model, String username, String password, String graphUri) {
+    static void upload(Model model, String graphUri, String host, String username, String password) {
             Authenticator.setDefault(new Authenticator() {
                 protected PasswordAuthentication getPasswordAuthentication() {
                     return new PasswordAuthentication(username, password.toCharArray());
@@ -33,7 +33,6 @@ public interface VirtuosoUploadUtils {
         }
         catch (Exception e) {
             log.error("error during upload",e);
-           // System.exit(-1);
         }
     }
     private static void loadIntoGraph_exception(byte[] data, String updateUrl) throws Exception {
@@ -48,6 +47,6 @@ public interface VirtuosoUploadUtils {
         conn.setRequestProperty("Content-Length", Integer.toString(data.length));
         conn.setUseCaches(false);
         conn.getOutputStream().write(data);
-        log.info("code: {}, message: {}", conn.getResponseCode(),conn.getResponseMessage());
+        log.trace("code: {}, message: {}", conn.getResponseCode(),conn.getResponseMessage());
     }
 }
