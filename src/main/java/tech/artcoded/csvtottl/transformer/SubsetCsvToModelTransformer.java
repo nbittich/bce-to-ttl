@@ -104,11 +104,11 @@ public class SubsetCsvToModelTransformer implements CommandLineRunner {
                 ofNullable(v.get("ContactType")).filter(StringUtils::isNotEmpty)
                         .ifPresentOrElse(contactType -> {
                             if("EMAIL".equals(contactType)){
-                                model.add(resource, FOAF.mbox, ResourceFactory.createResource(v.get("Value")));
+                                model.addLiteral(resource, FOAF.mbox, ResourceFactory.createStringLiteral(v.get("Value")));
                             }else if("WEB".equals(contactType)){
-                                model.add(resource, FOAF.homepage, ResourceFactory.createResource(v.get("Value")));
+                                model.addLiteral(resource, FOAF.homepage, ResourceFactory.createStringLiteral(v.get("Value")));
                             }else if("TEL".equals(contactType)){
-                                model.add(resource, FOAF.phone, v.get("Value"));
+                                model.addLiteral(resource, FOAF.phone, ResourceFactory.createStringLiteral(v.get("Value")));
                             }
 
                         }, () -> log.trace("'contact type' not found"));
