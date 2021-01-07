@@ -1,0 +1,42 @@
+query 1
+
+select distinct *   where {
+
+?contact a <http://bittich.be/bce/Contact>;
+        <http://bittich.be/bce/hasOrganization> ?hasOrg;
+        <http://bittich.be/bce/hasContactType> ?hasContactType;
+        <http://bittich.be/bce/value> ?value.
+filter(?hasOrg=<http://bittich.be/bce/company/2283732465>)
+
+} 
+
+#group by ?contact ?hasOrg
+#having (?hasContactType = <http://bittich.be/bce/ContactType/EMAIL>)
+#order by ?hasOrg
+
+=====
+
+query 2
+
+
+
+ CONSTRUCT { 
+    ?hasOrg ?hasContactType ?value
+ }
+ WHERE {
+?contact a <http://bittich.be/bce/Contact>;
+        <http://bittich.be/bce/hasOrganization> ?hasOrg;
+        <http://bittich.be/bce/hasContactType> ?hasContactType;
+        <http://bittich.be/bce/value> ?value.
+filter(?hasOrg=<http://bittich.be/bce/company/2283732465>) 
+filter(?hasContactType=<http://bittich.be/bce/ContactType/TEL>) 
+ }
+
+
+ ===
+
+select count(?org)   where {
+
+?org a <http://bittich.be/bce/Organization>.
+
+} 

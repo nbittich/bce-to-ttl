@@ -36,4 +36,20 @@ public interface CSVReaderUtils {
                     .collect(Collectors.toUnmodifiableList());
         }
     }
+    @SneakyThrows
+    static CsvDto readObj(InputStream is){
+        try (CSVReader reader = new CSVReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
+            List<String[]> lines = reader.readAll();
+            Supplier<Exception> exc = () ->new RuntimeException("At least two lines must be in the csv, first one has to be the header");
+            if(lines.size() < 2) {
+                throw exc.get();
+            }
+            String[] titles = lines.stream().findFirst().orElseThrow(exc);
+            var csv = lines.stream().skip(1).map(strings -> IntStream.range(0, titles.length)
+                    .mapToObj(index -> Map.entry(titles[index].replaceAll("\"",""),strings[index].replaceAll("\"","").replaceAll("'"," ")))
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)))
+                    .collect(Collectors.toUnmodifiableList());
+            return new CsvDto(titles,csv);
+        }
+    }
 }
