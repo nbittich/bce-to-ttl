@@ -33,6 +33,7 @@ public interface ModelConverter {
     return toModel(() -> IOUtils.toInputStream(value, StandardCharsets.UTF_8), lang);
   }
 
+
   static boolean equals(Model firstModel, Model secondModel) {
     return firstModel.isIsomorphicWith(secondModel);
   }
