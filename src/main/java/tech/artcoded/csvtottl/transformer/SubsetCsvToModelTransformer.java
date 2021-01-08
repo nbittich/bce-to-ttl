@@ -24,7 +24,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Optional.ofNullable;
 
-@Service
+//@Service
 @Slf4j
 public class SubsetCsvToModelTransformer implements CommandLineRunner {
     private static final String NAMESPACE_PREFIX = "http://bittich.be/bce";
@@ -195,8 +195,8 @@ public class SubsetCsvToModelTransformer implements CommandLineRunner {
     @Override
     public void run(String... args) throws Exception {
         log.info("start migration...");
-        Model model = this.transform();
-        RDFDataMgr.write(new FileOutputStream("/tmp/bce.ttl"), model, RDFFormat.TURTLE);
+        //Model model = this.transform();
+       // RDFDataMgr.write(new FileOutputStream("/tmp/bce.ttl"), model, RDFFormat.TURTLE);
         log.info("migration done.");
 
     }
