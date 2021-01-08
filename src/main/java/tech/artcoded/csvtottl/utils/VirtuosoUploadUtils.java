@@ -1,13 +1,9 @@
 package tech.artcoded.csvtottl.utils;
 
-import org.apache.commons.io.FileUtils;
-import org.apache.commons.lang3.StringUtils;
 import org.apache.jena.rdf.model.Model;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.File;
-import java.io.FileWriter;
 import java.io.StringWriter;
 import java.net.Authenticator;
 import java.net.HttpURLConnection;
@@ -28,7 +24,7 @@ public interface VirtuosoUploadUtils {
             StringWriter writer = new StringWriter();
             model.write(writer, "TURTLE");
 
-            String sparqlUrl = "http://localhost:8890/sparql" + "-graph-crud-auth?graph-uri=" + graphUri;
+            String sparqlUrl = host + "/sparql" + "-graph-crud-auth?graph-uri=" + graphUri;
             loadIntoGraph_exception(writer.toString().getBytes(StandardCharsets.UTF_8), sparqlUrl);
         }
         catch (Exception e) {

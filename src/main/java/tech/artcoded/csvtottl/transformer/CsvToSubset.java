@@ -3,7 +3,6 @@ package tech.artcoded.csvtottl.transformer;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FileUtils;
-import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.jena.rdf.model.Model;
 import org.apache.jena.rdf.model.ModelFactory;
@@ -15,7 +14,6 @@ import org.apache.jena.sparql.vocabulary.FOAF;
 import org.apache.jena.vocabulary.ORG;
 import org.apache.jena.vocabulary.RDF;
 import org.apache.jena.vocabulary.RDFS;
-import org.apache.jena.vocabulary.VCARD;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.core.io.Resource;
@@ -49,6 +47,8 @@ public class CsvToSubset implements CommandLineRunner {
     private Resource denominationCsv;
     @Value("classpath:contact.csv")
     private Resource contactCsv;
+    @Value("${chunkSize:12000")
+    private int chunkSize;
 
     public static <T> List<List<T>> getBatches(List<T> collection, int batchSize) {
         return IntStream.iterate(0, i -> i < collection.size(), i -> i + batchSize)
@@ -266,7 +266,7 @@ public class CsvToSubset implements CommandLineRunner {
         batchDir.mkdir();
 
         log.info("start batch...");
-        this.transform(12000, batchDir);
+        this.transform(chunkSize, batchDir);
         log.info("batch done.");
 
     }
