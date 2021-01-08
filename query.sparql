@@ -118,3 +118,67 @@ FILTER(LANG(?name) = "" || LANGMATCHES(LANG(?name), "fr"))
 
 FILTER(LANG(?label) = "" || LANGMATCHES(LANG(?label), "fr"))
 } limit 1000
+
+
+====
+select distinct ?org ?enterpriseNumber ?name ?juridicalSituation ?website ?email ?phone  where {
+
+?org  a <http://www.w3.org/ns/org#Organization>;
+
+     <http://mu.semte.ch/vocabularies/core/uuid> ?enterpriseNumber ;
+<http://bittich.be/bce/hasJuridicalSituation> ?hasJuridicalSituation.
+
+?hasJuridicalSituation a <http://bittich.be/bce/Code>;
+<http://www.w3.org/2000/01/rdf-schema#label> ?juridicalSituation.
+
+
+?denomination a <http://bittich.be/bce/Denomination>;
+<http://www.w3.org/ns/org#hasUnit> ?org;
+
+ <http://xmlns.com/foaf/0.1/name> ?name.
+
+?contact a <http://bittich.be/bce/Contact>;
+
+<http://www.w3.org/ns/org#hasUnit> ?org;
+<http://xmlns.com/foaf/0.1/homepage> ?website;
+<http://xmlns.com/foaf/0.1/mbox> ?email;
+<http://xmlns.com/foaf/0.1/phone> ?phone.
+FILTER(LANG(?name) = "" || LANGMATCHES(LANG(?name), "fr"))
+
+FILTER(LANG(?juridicalSituation) = "" || LANGMATCHES(LANG(?juridicalSituation), "fr"))
+} limit 10
+
+
+====
+select distinct ?org ?enterpriseNumber ?name ?juridicalSituation ?website ?email ?phone  where {
+
+?org  a <http://www.w3.org/ns/org#Organization>;
+
+     <http://mu.semte.ch/vocabularies/core/uuid> ?enterpriseNumber ;
+<http://bittich.be/bce/hasJuridicalSituation> ?hasJuridicalSituation.
+
+?hasJuridicalSituation a <http://bittich.be/bce/Code>;
+<http://www.w3.org/2000/01/rdf-schema#label> ?juridicalSituation.
+
+
+?denomination a <http://bittich.be/bce/Denomination>;
+<http://www.w3.org/ns/org#hasUnit> ?hasUnit;
+
+ <http://xmlns.com/foaf/0.1/name> ?name.
+
+optional {
+?contact a <http://bittich.be/bce/Contact>;
+
+<http://www.w3.org/ns/org#hasUnit> ?org;
+<http://xmlns.com/foaf/0.1/homepage> ?website;
+<http://xmlns.com/foaf/0.1/mbox> ?email;
+<http://xmlns.com/foaf/0.1/phone> ?phone.
+}
+FILTER (?hasUnit=?org)
+FILTER regex(?name, "DELHAIZE", "i")
+
+#FILTER( LANGMATCHES(LANG(?name), "nl"))
+ 
+
+FILTER(LANGMATCHES(LANG(?juridicalSituation), "nl"))
+} group by ?org limit 10 
