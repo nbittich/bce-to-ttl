@@ -14,6 +14,7 @@ import org.apache.jena.sparql.vocabulary.FOAF;
 import org.apache.jena.vocabulary.ORG;
 import org.apache.jena.vocabulary.RDF;
 import org.apache.jena.vocabulary.RDFS;
+import org.apache.jena.vocabulary.VCARD;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.core.io.Resource;
@@ -37,6 +38,7 @@ public class CsvToSubset implements CommandLineRunner {
     private static final org.apache.jena.rdf.model.Resource CODE_TYPE = ResourceFactory.createResource(NAMESPACE_PREFIX + "/Code");
     private static final org.apache.jena.rdf.model.Resource DENOMINATION_TYPE = ResourceFactory.createResource(NAMESPACE_PREFIX + "/Denomination");
     private static final org.apache.jena.rdf.model.Resource CONTACT_TYPE = ResourceFactory.createResource(NAMESPACE_PREFIX + "/Contact");
+    private static final org.apache.jena.rdf.model.Resource ADDR_TYPE = ResourceFactory.createResource(NAMESPACE_PREFIX + "/Address");
     private static final Property MU_UUID = ResourceFactory.createProperty("http://mu.semte.ch/vocabularies/core/uuid");
 
     @Value("classpath:code.csv")
@@ -47,8 +49,10 @@ public class CsvToSubset implements CommandLineRunner {
     private Resource denominationCsv;
     @Value("classpath:contact.csv")
     private Resource contactCsv;
-    @Value("${chunkSize:12000")
+    @Value("${chunkSize:4000}")
     private int chunkSize;
+    @Value("classpath:address.csv")
+    private Resource addressCsv;
 
     public static <T> List<List<T>> getBatches(List<T> collection, int batchSize) {
         return IntStream.iterate(0, i -> i < collection.size(), i -> i + batchSize)
@@ -70,6 +74,8 @@ public class CsvToSubset implements CommandLineRunner {
         CsvDto csvEnterprises = CSVReaderUtils.readObj(entrepriseCsv.getInputStream());
         CsvDto csvContacts = CSVReaderUtils.readObj(contactCsv.getInputStream());
         CsvDto csvDdenominations = CSVReaderUtils.readObj(denominationCsv.getInputStream());
+        CsvDto csvAddresses = CSVReaderUtils.readObj(addressCsv.getInputStream());
+
         log.info("load csvs done");
 
         // LOAD enriched data
@@ -77,6 +83,8 @@ public class CsvToSubset implements CommandLineRunner {
         Map<String, List<Map<String, String>>> contactsGroupedByEnterpriseNumber = csvContacts.getCsv()
                 .stream().collect(Collectors.groupingBy(map -> map.get("EntityNumber").replaceAll("\\.", "")));
         Map<String, List<Map<String, String>>> denominationsGroupedByEnterpriseNumber = csvDdenominations.getCsv().stream().
+                collect(Collectors.groupingBy(map -> map.get("EntityNumber").replaceAll("\\.", "")));
+        Map<String, List<Map<String, String>>> addressesGroupedByEnterpriseNumber = csvAddresses.getCsv().stream().
                 collect(Collectors.groupingBy(map -> map.get("EntityNumber").replaceAll("\\.", "")));
         log.info("load enriched data done");
 
@@ -111,6 +119,16 @@ public class CsvToSubset implements CommandLineRunner {
 
                 enrichModelWithDenominations(model, denominationsForEnterprises, codesToModel);
 
+                log.info("enrich model with addresses...");
+
+                List<Map<String, String>> adressesForEnterprises = enterpriseNumbers.stream()
+                        .map(addressesGroupedByEnterpriseNumber::get)
+                        .filter(Objects::nonNull)
+                        .flatMap(Collection::stream)
+                        .collect(Collectors.toList());
+
+                enrichModelWithAddress(model, adressesForEnterprises, codesToModel);
+
                 RDFDataMgr.write(new FileOutputStream(new File(batchDir, "%s.ttl".formatted(timestamp))), model, RDFFormat.TURTLE);
                 Thread.sleep(100);
             } catch (Exception e) {
@@ -133,7 +151,7 @@ public class CsvToSubset implements CommandLineRunner {
             value.stream().map(v -> {
                 var organizationUri = "%s/%s/%s".formatted(NAMESPACE_PREFIX, "company", enterpriseNumber);
                 org.apache.jena.rdf.model.Resource js = model.getResource(organizationUri);
-                model.add(resource, ORG.hasUnit, js);
+                model.add(resource,  ResourceFactory.createProperty(NAMESPACE_PREFIX + "/denominationBelongsTo"), js);
                 String lang = switch (v.get("Language")) {
                     case "2" -> "nl";
                     case "3" -> "de";
@@ -144,11 +162,52 @@ public class CsvToSubset implements CommandLineRunner {
             })
                     .filter(entry -> StringUtils.isNotEmpty(entry.getKey()) && StringUtils.isNotEmpty(entry.getValue()))
                     .forEach(entry -> {
-                        DataTransformer.addLangLiteral(resource, FOAF.name, entry.getKey(), entry.getValue(), false);
+                        resource.addLiteral(FOAF.name, ResourceFactory.createLangLiteral(entry.getKey(),entry.getValue()));
                     });
             model.add(resource, RDF.type, DENOMINATION_TYPE);
 
         });
+    }
+    private void enrichModelWithAddress(Model model, List<Map<String, String>> addressesForEnterprises, Model codesToModel) {
+        Map<String, List<Map<String, String>>> groupedResources = addressesForEnterprises.stream().
+                collect(Collectors.groupingBy(map -> map.get("EntityNumber").replaceAll("\\.", "").toUpperCase()));
+        groupedResources.forEach((enterpriseNumber, value) -> {
+            String uri = "%s/%s/%s".formatted(NAMESPACE_PREFIX, "address", enterpriseNumber);
+            org.apache.jena.rdf.model.Resource resource = model.createResource(uri);
+            resource.addProperty(MU_UUID, ResourceFactory.createStringLiteral("ADDR" + enterpriseNumber.toUpperCase()));
+            value.forEach(v -> {
+                var organizationUri = "%s/%s/%s".formatted(NAMESPACE_PREFIX, "company", enterpriseNumber);
+                org.apache.jena.rdf.model.Resource org = model.getResource(organizationUri);
+                model.add(resource, ResourceFactory.createProperty(NAMESPACE_PREFIX + "/addressBelongsTo"), org);
+                ofNullable(v.get("TypeOfAddress")).filter(StringUtils::isNotEmpty).map(toa -> "%s/%s/%s".formatted(NAMESPACE_PREFIX,"code", ("TypeOfAddress" + toa).toUpperCase()))
+                        .ifPresentOrElse(toaUri -> {
+                            org.apache.jena.rdf.model.Resource toa = codesToModel.getResource(toaUri);
+                            model.add(resource, ResourceFactory.createProperty(NAMESPACE_PREFIX + "/hasAddressType"), toa);
+                        }, () -> log.trace("'type of address' not found"));
+
+                String streetFr = ofNullable(v.get("StreetFR")).orElse("");
+                String municipalityFr = ofNullable(v.get("MunicipalityFR")).orElse("");
+                String streetNl = ofNullable(v.get("StreetNL")).orElse("");
+                String municipalityNl = ofNullable(v.get("MunicipalityNL")).orElse("");
+                String houseNumber = ofNullable(v.get("HouseNumber")).orElse("");
+                String zipcode = ofNullable(v.get("Zipcode")).orElse("");
+
+                if(StringUtils.isNotEmpty(streetFr)){
+                    String addressFr= "%s %s, %s %s".formatted(streetFr, houseNumber, zipcode, municipalityFr);
+                    resource.addProperty(VCARD.ADR, ResourceFactory.createLangLiteral(addressFr, "fr"));
+                }
+                if(StringUtils.isNotEmpty(streetNl)){
+                    String addressNl= "%s %s, %s %s".formatted(streetNl, houseNumber, zipcode, municipalityNl);
+                    resource.addProperty(VCARD.ADR, ResourceFactory.createLangLiteral(addressNl, "nl"));
+                }
+
+
+            });
+
+
+            model.add(resource, RDF.type, ADDR_TYPE);
+        });
+
     }
 
     private void enrichModelWithContacts(Model model, List<Map<String, String>> contactsForEnterprises, Model codesToModel) {
@@ -162,16 +221,16 @@ public class CsvToSubset implements CommandLineRunner {
             value.forEach(v -> {
                 var organizationUri = "%s/%s/%s".formatted(NAMESPACE_PREFIX, "company", enterpriseNumber);
                 org.apache.jena.rdf.model.Resource js = model.getResource(organizationUri);
-                model.add(resource, ORG.hasUnit, js);
+                model.add(resource,  ResourceFactory.createProperty(NAMESPACE_PREFIX + "/contactBelongsTo"), js);
 
                 ofNullable(v.get("ContactType")).filter(StringUtils::isNotEmpty)
                         .ifPresentOrElse(contactType -> {
                             if ("EMAIL".equals(contactType)) {
-                                model.addLiteral(resource, FOAF.mbox, ResourceFactory.createStringLiteral(v.get("Value")));
+                                resource.addLiteral(FOAF.mbox, ResourceFactory.createStringLiteral(v.get("Value")));
                             } else if ("WEB".equals(contactType)) {
-                                model.addLiteral(resource, FOAF.homepage, ResourceFactory.createStringLiteral(v.get("Value")));
+                                resource.addLiteral(FOAF.homepage, ResourceFactory.createStringLiteral(v.get("Value")));
                             } else if ("TEL".equals(contactType)) {
-                                model.addLiteral(resource, FOAF.phone, ResourceFactory.createStringLiteral(v.get("Value")));
+                                resource.addLiteral(FOAF.phone, ResourceFactory.createStringLiteral(v.get("Value")));
                             }
 
                         }, () -> log.trace("'contact type' not found"));
@@ -199,7 +258,7 @@ public class CsvToSubset implements CommandLineRunner {
 
             org.apache.jena.rdf.model.Resource resource = model.createResource("%s/%s/%s".formatted(NAMESPACE_PREFIX, "code",categoryCode));
             resource.addProperty(MU_UUID, ResourceFactory.createStringLiteral(categoryCode));
-            value.forEach(lang -> DataTransformer.addLangLiteral(resource, RDFS.label, lang.get("Description"), lang.get("Language").toLowerCase(), false));
+            value.forEach(lang -> resource.addLiteral(RDFS.label, ResourceFactory.createLangLiteral(lang.get("Description"),lang.get("Language").toLowerCase())));
             model.add(resource, RDF.type, CODE_TYPE);
         });
         RDFDataMgr.write(new FileOutputStream(new File(batchDir, "%s-code.ttl".formatted(timestamp))), model, RDFFormat.TURTLE);
@@ -247,8 +306,7 @@ public class CsvToSubset implements CommandLineRunner {
                             org.apache.jena.rdf.model.Resource js = codesToModel.getResource(juridicalFormUri);
                             model.add(resource, ResourceFactory.createProperty(NAMESPACE_PREFIX + "/hasJuridicalForm"), js);
                         }, () -> log.trace("'juridicalFormUri' not found"));
-
-                DataTransformer.addLiteral(resource, ResourceFactory.createProperty(NAMESPACE_PREFIX + "/hasStartDate"), line.get("StartDate"), false);
+                resource.addLiteral(ResourceFactory.createProperty(NAMESPACE_PREFIX + "/hasStartDate"), ResourceFactory.createStringLiteral(line.get("StartDate")));
 
             });
             model.add(resource, RDF.type, ORG.Organization);
@@ -268,6 +326,7 @@ public class CsvToSubset implements CommandLineRunner {
         log.info("start batch...");
         this.transform(chunkSize, batchDir);
         log.info("batch done.");
+        System.exit(0);
 
     }
 }
